@@ -1,0 +1,59 @@
+{
+  "name": "@hai-on-op/scripts",
+  "version": "0.0.0",
+  "description": "HAI's keeper scripts",
+  "keywords": [
+    "job",
+    "ethereum"
+  ],
+  "license": "GPL-3.0",
+  "author": "Wonderland",
+  "contributors": [
+    "wei3erhase (https://github.com/wei3erhase)",
+    "dristpunk (https://github.com/dristpunk)"
+  ],
+  "private": true,
+  "scripts": {
+    "start:oracles": "ts-node src/oracles.ts",
+    "start:pid": "ts-node src/pid-controller.ts",
+    "build": "tsc",
+    "prod:data-time-fetch": "node dist/oracles.js",
+    "prod:data-twap-fetch": "node dist/pid-controller.js",
+    "lint": "xo",
+    "lint:fix": "xo --fix"
+  },
+  "lint-staged": {
+    "*.ts": "yarn lint"
+  },
+  "dependencies": {
+    "dotenv": "16.0.3",
+    "ethers": "5.6.9",
+    "lodash.isequal": "4.5.0"
+  },
+  "devDependencies": {
+    "@types/lodash.isequal": "4.5.6",
+    "husky": ">=6",
+    "lint-staged": ">=10",
+    "ts-node": "10.9.1",
+    "typescript": "4.8.4",
+    "xo": "0.52.3"
+  },
+  "xo": {
+    "prettier": true,
+    "rules": {
+      "unicorn/prefer-module": 0,
+      "import/extensions": 0,
+      "@typescript-eslint/no-unsafe-assignment": 0,
+      "@typescript-eslint/naming-convention": [
+        "error",
+        {
+          "selector": "variable",
+          "format": [
+            "camelCase",
+            "UPPER_CASE"
+          ]
+        }
+      ]
+    }
+  }
+}
