@@ -3,6 +3,7 @@ import { providers, Wallet } from 'ethers';
 import dotenv from 'dotenv';
 import OracleJobAbi from './abis/OracleJob.json';
 import { env } from 'process';
+import { checkBalance } from './utils/misc';
 
 dotenv.config();
 
@@ -50,12 +51,15 @@ export async function run(): Promise<void> {
 
   // check if we have enough funds for gas
   const signerBalance = await provider.getBalance(txSigner.address);
-  if (signerBalance.lt(txFee)) {
+  try {
+    checkBalance(signerBalance, txFee);
+  } catch (err) {
     console.log(`Insufficient balance for PID Controller`);
     console.log(`Balance is ${utils.formatUnits(signerBalance, 'ether')}, but tx fee is ${utils.formatUnits(txFee, 'ether')}`);
     txInProgress = false;
     return;
   }
+
   // broadcast tx
   try {
     tx = await oracleJob.workUpdateRate({ gasLimit: gasUnits });

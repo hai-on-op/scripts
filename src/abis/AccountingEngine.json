@@ -1,0 +1,224 @@
+[
+  {
+    "inputs": [
+      { "internalType": "address", "name": "_safeEngine", "type": "address" },
+      { "internalType": "address", "name": "_surplusAuctionHouse", "type": "address" },
+      { "internalType": "address", "name": "_debtAuctionHouse", "type": "address" },
+      {
+        "components": [
+          { "internalType": "uint256", "name": "surplusIsTransferred", "type": "uint256" },
+          { "internalType": "uint256", "name": "surplusDelay", "type": "uint256" },
+          { "internalType": "uint256", "name": "popDebtDelay", "type": "uint256" },
+          { "internalType": "uint256", "name": "disableCooldown", "type": "uint256" },
+          { "internalType": "uint256", "name": "surplusAmount", "type": "uint256" },
+          { "internalType": "uint256", "name": "surplusBuffer", "type": "uint256" },
+          { "internalType": "uint256", "name": "debtAuctionMintedTokens", "type": "uint256" },
+          { "internalType": "uint256", "name": "debtAuctionBidSize", "type": "uint256" }
+        ],
+        "internalType": "struct IAccountingEngine.AccountingEngineParams",
+        "name": "_accEngineParams",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  { "inputs": [], "name": "AccEng_DebtAuctionDisabled", "type": "error" },
+  { "inputs": [], "name": "AccEng_DebtNotZero", "type": "error" },
+  { "inputs": [], "name": "AccEng_InsufficientDebt", "type": "error" },
+  { "inputs": [], "name": "AccEng_InsufficientSurplus", "type": "error" },
+  { "inputs": [], "name": "AccEng_NullAmount", "type": "error" },
+  { "inputs": [], "name": "AccEng_NullSurplusReceiver", "type": "error" },
+  { "inputs": [], "name": "AccEng_PopDebtCooldown", "type": "error" },
+  { "inputs": [], "name": "AccEng_PostSettlementCooldown", "type": "error" },
+  { "inputs": [], "name": "AccEng_SurplusAuctionDisabled", "type": "error" },
+  { "inputs": [], "name": "AccEng_SurplusCooldown", "type": "error" },
+  { "inputs": [], "name": "AccEng_SurplusNotZero", "type": "error" },
+  { "inputs": [], "name": "AccEng_SurplusTransferDisabled", "type": "error" },
+  { "inputs": [], "name": "AlreadyAuthorized", "type": "error" },
+  { "inputs": [], "name": "ContractIsDisabled", "type": "error" },
+  { "inputs": [], "name": "ContractIsEnabled", "type": "error" },
+  { "inputs": [], "name": "NonDisableable", "type": "error" },
+  { "inputs": [], "name": "NotAuthorized", "type": "error" },
+  { "inputs": [], "name": "NullAddress", "type": "error" },
+  { "inputs": [], "name": "Unauthorized", "type": "error" },
+  { "inputs": [], "name": "UnrecognizedCType", "type": "error" },
+  { "inputs": [], "name": "UnrecognizedParam", "type": "error" },
+  { "anonymous": false, "inputs": [{ "indexed": false, "internalType": "address", "name": "_account", "type": "address" }], "name": "AddAuthorization", "type": "event" },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "_id", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "_initialBid", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "_debtAuctioned", "type": "uint256" }
+    ],
+    "name": "AuctionDebt",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "_id", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "_initialBid", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "_surplusAuctioned", "type": "uint256" }
+    ],
+    "name": "AuctionSurplus",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": false, "internalType": "uint256", "name": "_rad", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "_coinBalance", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "_debtBalance", "type": "uint256" }
+    ],
+    "name": "CancelDebt",
+    "type": "event"
+  },
+  { "anonymous": false, "inputs": [], "name": "DisableContract", "type": "event" },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "bytes32", "name": "_param", "type": "bytes32" },
+      { "indexed": true, "internalType": "bytes32", "name": "_cType", "type": "bytes32" },
+      { "indexed": false, "internalType": "bytes", "name": "_data", "type": "bytes" }
+    ],
+    "name": "ModifyParameters",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "_timestamp", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "_debtAmount", "type": "uint256" }
+    ],
+    "name": "PopDebtFromQueue",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "_timestamp", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "_debtAmount", "type": "uint256" }
+    ],
+    "name": "PushDebtToQueue",
+    "type": "event"
+  },
+  { "anonymous": false, "inputs": [{ "indexed": false, "internalType": "address", "name": "_account", "type": "address" }], "name": "RemoveAuthorization", "type": "event" },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": false, "internalType": "uint256", "name": "_rad", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "_coinBalance", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "_debtBalance", "type": "uint256" }
+    ],
+    "name": "SettleDebt",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "_extraSurplusReceiver", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "_surplusTransferred", "type": "uint256" }
+    ],
+    "name": "TransferSurplus",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "_params",
+    "outputs": [
+      { "internalType": "uint256", "name": "surplusIsTransferred", "type": "uint256" },
+      { "internalType": "uint256", "name": "surplusDelay", "type": "uint256" },
+      { "internalType": "uint256", "name": "popDebtDelay", "type": "uint256" },
+      { "internalType": "uint256", "name": "disableCooldown", "type": "uint256" },
+      { "internalType": "uint256", "name": "surplusAmount", "type": "uint256" },
+      { "internalType": "uint256", "name": "surplusBuffer", "type": "uint256" },
+      { "internalType": "uint256", "name": "debtAuctionMintedTokens", "type": "uint256" },
+      { "internalType": "uint256", "name": "debtAuctionBidSize", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  { "inputs": [{ "internalType": "address", "name": "_account", "type": "address" }], "name": "addAuthorization", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [], "name": "auctionDebt", "outputs": [{ "internalType": "uint256", "name": "_id", "type": "uint256" }], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [], "name": "auctionSurplus", "outputs": [{ "internalType": "uint256", "name": "_id", "type": "uint256" }], "stateMutability": "nonpayable", "type": "function" },
+  {
+    "inputs": [{ "internalType": "address", "name": "_account", "type": "address" }],
+    "name": "authorizedAccounts",
+    "outputs": [{ "internalType": "bool", "name": "_authorized", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  { "inputs": [], "name": "authorizedAccounts", "outputs": [{ "internalType": "address[]", "name": "_accounts", "type": "address[]" }], "stateMutability": "view", "type": "function" },
+  { "inputs": [{ "internalType": "uint256", "name": "_rad", "type": "uint256" }], "name": "cancelAuctionedDebtWithSurplus", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [], "name": "contractEnabled", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
+  { "inputs": [], "name": "debtAuctionHouse", "outputs": [{ "internalType": "contract IDebtAuctionHouse", "name": "", "type": "address" }], "stateMutability": "view", "type": "function" },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "name": "debtQueue",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  { "inputs": [], "name": "disableContract", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [], "name": "disableTimestamp", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+  { "inputs": [], "name": "extraSurplusReceiver", "outputs": [{ "internalType": "address", "name": "", "type": "address" }], "stateMutability": "view", "type": "function" },
+  { "inputs": [], "name": "lastSurplusTime", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_cType", "type": "bytes32" },
+      { "internalType": "bytes32", "name": "_param", "type": "bytes32" },
+      { "internalType": "bytes", "name": "_data", "type": "bytes" }
+    ],
+    "name": "modifyParameters",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_param", "type": "bytes32" },
+      { "internalType": "bytes", "name": "_data", "type": "bytes" }
+    ],
+    "name": "modifyParameters",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "params",
+    "outputs": [
+      {
+        "components": [
+          { "internalType": "uint256", "name": "surplusIsTransferred", "type": "uint256" },
+          { "internalType": "uint256", "name": "surplusDelay", "type": "uint256" },
+          { "internalType": "uint256", "name": "popDebtDelay", "type": "uint256" },
+          { "internalType": "uint256", "name": "disableCooldown", "type": "uint256" },
+          { "internalType": "uint256", "name": "surplusAmount", "type": "uint256" },
+          { "internalType": "uint256", "name": "surplusBuffer", "type": "uint256" },
+          { "internalType": "uint256", "name": "debtAuctionMintedTokens", "type": "uint256" },
+          { "internalType": "uint256", "name": "debtAuctionBidSize", "type": "uint256" }
+        ],
+        "internalType": "struct IAccountingEngine.AccountingEngineParams",
+        "name": "_accEngineParams",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  { "inputs": [{ "internalType": "uint256", "name": "_debtBlockTimestamp", "type": "uint256" }], "name": "popDebtFromQueue", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [], "name": "postSettlementSurplusDrain", "outputs": [{ "internalType": "address", "name": "", "type": "address" }], "stateMutability": "view", "type": "function" },
+  { "inputs": [{ "internalType": "uint256", "name": "_debtBlock", "type": "uint256" }], "name": "pushDebtToQueue", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [{ "internalType": "address", "name": "_account", "type": "address" }], "name": "removeAuthorization", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [], "name": "safeEngine", "outputs": [{ "internalType": "contract ISAFEEngine", "name": "", "type": "address" }], "stateMutability": "view", "type": "function" },
+  { "inputs": [{ "internalType": "uint256", "name": "_rad", "type": "uint256" }], "name": "settleDebt", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [], "name": "surplusAuctionHouse", "outputs": [{ "internalType": "contract ISurplusAuctionHouse", "name": "", "type": "address" }], "stateMutability": "view", "type": "function" },
+  { "inputs": [], "name": "totalOnAuctionDebt", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+  { "inputs": [], "name": "totalQueuedDebt", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+  { "inputs": [], "name": "transferExtraSurplus", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [], "name": "transferPostSettlementSurplus", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [], "name": "unqueuedUnauctionedDebt", "outputs": [{ "internalType": "uint256", "name": "__unqueuedUnauctionedDebt", "type": "uint256" }], "stateMutability": "view", "type": "function" }
+]
