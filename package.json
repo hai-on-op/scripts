@@ -19,13 +19,15 @@
     "build": "tsc",
     "prod:data-time-fetch": "node dist/oracles.js",
     "prod:data-twap-fetch": "node dist/pid-controller.js",
-    "lint": "xo",
-    "lint:fix": "xo --fix"
+    "lint:check": "yarn lint",
+    "lint:fix": "yarn lint --fix",
+    "lint": "eslint ./src"
   },
   "lint-staged": {
     "*.ts": "yarn lint"
   },
   "dependencies": {
+    "@types/node": "^20.4.2",
     "dotenv": "16.0.3",
     "ethers": "5.6.9",
     "lodash.isequal": "4.5.0"
