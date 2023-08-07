@@ -16,8 +16,8 @@ dotenv.config();
 const provider = new providers.JsonRpcProvider(env.RPC_HTTPS_URI);
 const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as Bytes, provider);
 
-const accountingEngine = new Contract('0xE26EE6aD8eb35360D61052457AB696cf09acE962', AccountingEngineAbi, txSigner);
-const accountingJob = new Contract('0x31b48F4e4610a8f0BcAec5Af3E414688FB3320a4', AccountingJobAbi, txSigner);
+const accountingEngine = new Contract('0x64D93F245F921414416b0FcaDe2C035C67A971D6', AccountingEngineAbi, txSigner);
+const accountingJob = new Contract('0x3cE8DD6D2496190B0769A9743567e1919cDB1e47', AccountingJobAbi, txSigner);
 
 const timeout = 5 * 1000 * 60; // 15 minutes
 

@@ -16,6 +16,7 @@
   "scripts": {
     "start:oracles": "ts-node src/oracles.ts",
     "start:pid": "ts-node src/pid-controller.ts",
+    "start:pop-debt": "ts-node src/pop-debt.ts",
     "build": "tsc",
     "prod:data-time-fetch": "node dist/oracles.js",
     "prod:data-twap-fetch": "node dist/pid-controller.js",

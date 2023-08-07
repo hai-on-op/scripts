@@ -15,7 +15,7 @@ dotenv.config();
 const provider = new providers.JsonRpcProvider(env.RPC_HTTPS_URI);
 const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as Bytes, provider);
 
-const oracleJob = new Contract('0xCC81b8E22Bc48133125BDa642C452EC6A52853C8', OracleJobAbi, txSigner);
+const oracleJob = new Contract('0x3e05f863afa6ACcAE0ED1e535559c881CB3f6b85', OracleJobAbi, txSigner);
 
 const collateralTypes: string[] = [
   utils.formatBytes32String('WETH'), // WETH
