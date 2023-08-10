@@ -1,0 +1,83 @@
+[
+  {
+    "inputs": [
+      { "internalType": "address", "name": "_liquidationEngine", "type": "address" },
+      { "internalType": "address", "name": "_stabilityFeeTreasury", "type": "address" },
+      { "internalType": "uint256", "name": "_rewardAmount", "type": "uint256" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  { "inputs": [], "name": "AlreadyAuthorized", "type": "error" },
+  { "inputs": [], "name": "NotAuthorized", "type": "error" },
+  { "inputs": [], "name": "NotWorkable", "type": "error" },
+  { "inputs": [], "name": "Unauthorized", "type": "error" },
+  { "inputs": [], "name": "UnrecognizedCType", "type": "error" },
+  { "inputs": [], "name": "UnrecognizedParam", "type": "error" },
+  { "anonymous": false, "inputs": [{ "indexed": false, "internalType": "address", "name": "_account", "type": "address" }], "name": "AddAuthorization", "type": "event" },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "bytes32", "name": "_param", "type": "bytes32" },
+      { "indexed": true, "internalType": "bytes32", "name": "_cType", "type": "bytes32" },
+      { "indexed": false, "internalType": "bytes", "name": "_data", "type": "bytes" }
+    ],
+    "name": "ModifyParameters",
+    "type": "event"
+  },
+  { "anonymous": false, "inputs": [{ "indexed": false, "internalType": "address", "name": "_account", "type": "address" }], "name": "RemoveAuthorization", "type": "event" },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": false, "internalType": "address", "name": "_rewardedAccount", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "_rewardAmount", "type": "uint256" }
+    ],
+    "name": "Rewarded",
+    "type": "event"
+  },
+  { "inputs": [{ "internalType": "address", "name": "_account", "type": "address" }], "name": "addAuthorization", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+  {
+    "inputs": [{ "internalType": "address", "name": "_account", "type": "address" }],
+    "name": "authorizedAccounts",
+    "outputs": [{ "internalType": "bool", "name": "_authorized", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  { "inputs": [], "name": "authorizedAccounts", "outputs": [{ "internalType": "address[]", "name": "_accounts", "type": "address[]" }], "stateMutability": "view", "type": "function" },
+  { "inputs": [], "name": "liquidationEngine", "outputs": [{ "internalType": "contract ILiquidationEngine", "name": "", "type": "address" }], "stateMutability": "view", "type": "function" },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_cType", "type": "bytes32" },
+      { "internalType": "bytes32", "name": "_param", "type": "bytes32" },
+      { "internalType": "bytes", "name": "_data", "type": "bytes" }
+    ],
+    "name": "modifyParameters",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_param", "type": "bytes32" },
+      { "internalType": "bytes", "name": "_data", "type": "bytes" }
+    ],
+    "name": "modifyParameters",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  { "inputs": [{ "internalType": "address", "name": "_account", "type": "address" }], "name": "removeAuthorization", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
+  { "inputs": [], "name": "rewardAmount", "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+  { "inputs": [], "name": "shouldWork", "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }], "stateMutability": "view", "type": "function" },
+  { "inputs": [], "name": "stabilityFeeTreasury", "outputs": [{ "internalType": "contract IStabilityFeeTreasury", "name": "", "type": "address" }], "stateMutability": "view", "type": "function" },
+  {
+    "inputs": [
+      { "internalType": "bytes32", "name": "_cType", "type": "bytes32" },
+      { "internalType": "address", "name": "_safe", "type": "address" }
+    ],
+    "name": "workLiquidation",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
