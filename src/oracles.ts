@@ -25,66 +25,79 @@ const collateralTypes: string[] = [
   utils.formatBytes32String('TOTEM'), // TOTEM
 ];
 
-// Flag to track if there's a transaction in progress.
-// This is used to prevent multiple transactions from being sent at the same time.
-let txInProgress: boolean;
+const emulateTxBatch = async (collateralTypes: string[]) => {
+  return await Promise.all(
+    collateralTypes.map(async (cType) => {
+      try {
+        await oracleJob.callStatic.workUpdateCollateralPrice(cType);
+        console.log(`Successfully emulated: ${cType}`);
+      } catch (err) {
+        console.log(`Failed to emulate: ${cType}`);
+        return false;
+      }
+
+      return true;
+    })
+  );
+};
+
+const executeTx = async (cType: any) => {
+  let tx;
+  let gasUnits;
+  let gasPrice;
+  let txFee;
+
+  // estimate gas
+  console.log(`Executing Work: ${cType}`);
+
+  try {
+    gasUnits = await oracleJob.estimateGas.workUpdateCollateralPrice(cType);
+    gasUnits = gasUnits.mul(12).div(10); // add 20% buffer
+    gasPrice = await provider.getGasPrice();
+    txFee = gasUnits.mul(gasPrice);
+  } catch (err) {
+    console.log(`Failed to estimate gas for: ${cType}`);
+    return;
+  }
+
+  // check if we have enough funds for gas
+  const signerBalance = await provider.getBalance(txSigner.address);
+  try {
+    checkBalance(signerBalance, txFee);
+  } catch (err) {
+    console.log(`Insufficient balance for: ${cType}`);
+    console.log(`Balance is ${utils.formatUnits(signerBalance, 'ether')}, but tx fee is ${utils.formatUnits(txFee, 'ether')}`);
+    return;
+  }
+
+  // broadcast tx
+  try {
+    tx = await oracleJob.workUpdateCollateralPrice(cType, { gasLimit: gasUnits });
+    // wait for tx to be mined
+    await tx.wait();
+
+    console.log(`Successfully broadcasted: ${cType}`);
+  } catch (err) {
+    console.log(`Failed to broadcast: ${cType}`);
+    console.log(err);
+  }
+};
 
 /* ==============================================================/*
                        MAIN SCRIPT
 /*============================================================== */
 
 export async function run(): Promise<void> {
-  await Promise.all(
-    collateralTypes.map(async (cType: string) => {
-      if (txInProgress) return;
+  // emulate batch
+  const succeed = await emulateTxBatch(collateralTypes);
 
-      let tx;
-      let gasUnits;
-      let gasPrice;
-      let txFee;
-      // emulate tx
-      try {
-        console.log(`Emulating: ${cType}`);
-        await oracleJob.callStatic.workUpdateCollateralPrice(cType);
-        txInProgress = true;
+  // execute sequentially
+  for (let i = 0; i < collateralTypes.length; i++) {
+    if (!succeed[i]) continue;
 
-        gasUnits = await oracleJob.estimateGas.workUpdateCollateralPrice(cType);
-        gasUnits = gasUnits.mul(12).div(10); // add 20% buffer
-        gasPrice = await provider.getGasPrice();
-        txFee = gasUnits.mul(gasPrice);
-        console.log(`Successfully emulated: ${cType}`);
-      } catch (err) {
-        txInProgress = false;
-        console.log(`Unsuccessfull emulation: ${cType}`);
-        return;
-      }
-
-      // check if we have enough funds for gas
-      const signerBalance = await provider.getBalance(txSigner.address);
-      try {
-        checkBalance(signerBalance, txFee);
-      } catch (err) {
-        console.log(`Insufficient balance for ${cType}`);
-        console.log(`Balance is ${utils.formatUnits(signerBalance, 'ether')}, but tx fee is ${utils.formatUnits(txFee, 'ether')}`);
-        txInProgress = false;
-        return;
-      }
-
-      // broadcast tx
-      try {
-        tx = await oracleJob.workUpdateCollateralPrice(cType, { gasLimit: gasUnits });
-        // wait for tx to be mined
-        await tx.wait();
-
-        console.log(`Successfully broadcasted: ${cType}`);
-      } catch (err) {
-        console.log(`Failed to broadcast: ${cType}`);
-        console.log(err);
-      }
-
-      txInProgress = false;
-    })
-  );
+    const cType = collateralTypes[i];
+    await executeTx(cType);
+  }
 }
 
 (async function main() {
