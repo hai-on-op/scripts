@@ -19,6 +19,7 @@ const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as Bytes, provider)
 
 const liquidationJob = new Contract('0xAD038eFce5dE9DBC1acfe2e321Dd8F2D6f16e26b', LiquidationJobAbi, txSigner);
 const safeManager = new Contract('0xc0C6e2e5a31896e888eBEF5837Bb70CB3c37D86C', SafeManagerAbi, txSigner);
+const maxChunkSize = 100;
 
 const executeTx = async (id: number, cType: any, safeHandler: any) => {
   let tx;
@@ -69,15 +70,22 @@ export async function run(): Promise<void> {
   const openSafeEvents = (await safeManager.queryFilter(safeManager.filters.OpenSAFE())) as any;
   const safeIds = openSafeEvents.map((event: any) => event.args[2]);
 
-  // emulate batch
-  const inputData = utils.defaultAbiCoder.encode(['address', 'address', 'uint256[]'], [liquidationJob.address, safeManager.address, safeIds]);
-  const contractCreationCode = BatchWorkable.bytecode.concat(inputData.slice(2));
-  const returnedData = await provider.call({ data: contractCreationCode });
-  const [decoded] = utils.defaultAbiCoder.decode(['tuple(bool,bytes32,address)[]'], returnedData);
-
+  // emulate batch with chunks
+  let decodedAll: any[] = [];
+  for (let i = 0; i < safeIds.length; i += maxChunkSize) {
+    const safeIdsChunk = safeIds.slice(i, i + maxChunkSize);
+    const inputData = utils.defaultAbiCoder.encode(
+      ['address', 'address', 'uint256[]'],
+      [liquidationJob.address, safeManager.address, safeIdsChunk]
+    );
+    const contractCreationCode = BatchWorkable.bytecode.concat(inputData.slice(2));
+    const returnedData = await provider.call({ data: contractCreationCode });
+    const [decoded] = utils.defaultAbiCoder.decode(['tuple(bool,bytes32,address)[]'], returnedData);
+    decodedAll = decodedAll.concat(decoded);
+  }
   // execute batch
-  for (let i = 0; i < decoded.length; i++) {
-    const [emulated, cType, safeHandler] = decoded[i];
+  for (let i = 0; i < decodedAll.length; i++) {
+    const [emulated, cType, safeHandler] = decodedAll[i];
     if (!emulated) continue;
 
     await executeTx(safeIds[i], cType, safeHandler);
