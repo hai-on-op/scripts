@@ -1,9 +1,10 @@
-import { Bytes, Contract, utils } from 'ethers';
+import { utils } from 'ethers';
 import { providers, Wallet } from 'ethers';
 import dotenv from 'dotenv';
-import OracleJobAbi from './abis/OracleJob.json';
 import { env } from 'process';
 import { checkBalance } from './utils/misc';
+import { Geb, BasicActions } from '@hai-on-op/sdk';
+import { getProxy } from './utils/misc';
 
 dotenv.config();
 
@@ -13,21 +14,16 @@ dotenv.config();
 
 // environment variables usage
 const provider = new providers.JsonRpcProvider(env.RPC_HTTPS_URI);
-const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as Bytes, provider);
+const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as string, provider);
 
-const oracleJob = new Contract('0x3e05f863afa6ACcAE0ED1e535559c881CB3f6b85', OracleJobAbi, txSigner);
-
-// Flag to track if there's a transaction in progress.
-// This is used to prevent multiple transactions from being sent at the same time.
-let txInProgress: boolean;
+const geb = new Geb('optimism-goerli', txSigner);
+let proxy: BasicActions;
 
 /* ==============================================================/*
                        MAIN SCRIPT
 /*============================================================== */
 
-export async function run(): Promise<void> {
-  if (txInProgress) return;
-
+export async function run(): Promise<any> {
   let tx;
   let gasUnits;
   let gasPrice;
@@ -35,16 +31,14 @@ export async function run(): Promise<void> {
   // emulate tx
   try {
     console.log(`Emulating: PID Controller`);
-    await oracleJob.callStatic.workUpdateRate();
-    txInProgress = true;
+    await geb.contracts.oracleJob.callStatic.workUpdateRate();
 
-    gasUnits = await oracleJob.estimateGas.workUpdateRate();
-    gasUnits = gasUnits.mul(12).div(10); // add 20% buffer
+    gasUnits = await geb.contracts.oracleJob.estimateGas.workUpdateRate();
+    gasUnits = gasUnits.mul(15).div(10); // add 50% buffer
     gasPrice = await provider.getGasPrice();
     txFee = gasUnits.mul(gasPrice);
     console.log(`Successfully emulated: PID Controller`);
   } catch (err) {
-    txInProgress = false;
     console.log(`Unsuccessfull emulation: PID Controller`);
     return;
   }
@@ -56,27 +50,28 @@ export async function run(): Promise<void> {
   } catch (err) {
     console.log(`Insufficient balance for PID Controller`);
     console.log(`Balance is ${utils.formatUnits(signerBalance, 'ether')}, but tx fee is ${utils.formatUnits(txFee, 'ether')}`);
-    txInProgress = false;
     return;
   }
 
   // broadcast tx
   try {
-    tx = await oracleJob.workUpdateRate({ gasLimit: gasUnits });
-    // wait for tx to be mined
-    await tx.wait();
+    tx = await proxy.updateRedemptionRate();
+    if (!tx) throw new Error('No transaction request!');
+    tx.gasLimit = gasUnits;
+    const txData = await txSigner.sendTransaction(tx);
+    const txReceipt = await txData.wait();
 
     console.log(`Successfully broadcasted: PID Controller`);
+    return txReceipt;
   } catch (err) {
     console.log(`Failed to broadcast: PID Controller`);
     console.log(err);
   }
-
-  txInProgress = false;
 }
 
 (async function main() {
   console.log('Running...');
+  proxy = await getProxy(txSigner, geb);
   await run();
   setTimeout(main, 15 * 1000); // every 15 seconds
 })();

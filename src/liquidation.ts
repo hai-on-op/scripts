@@ -1,11 +1,10 @@
-import { Bytes, Contract, utils } from 'ethers';
+import { utils } from 'ethers';
 import { providers, Wallet } from 'ethers';
 import dotenv from 'dotenv';
-import LiquidationJobAbi from './abis/LiquidationJob.json';
-import SafeManagerAbi from './abis/SafeManager.json';
 import { env } from 'process';
-import { checkBalance } from './utils/misc';
+import { checkBalance, getProxy } from './utils/misc';
 import * as BatchWorkable from '../solidity/artifacts/contracts/BatchLiquidator.sol/BatchLiquidator.json';
+import { Geb, BasicActions } from '@hai-on-op/sdk';
 
 dotenv.config();
 
@@ -15,11 +14,20 @@ dotenv.config();
 
 // environment variables usage
 const provider = new providers.JsonRpcProvider(env.RPC_HTTPS_URI);
-const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as Bytes, provider);
+const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as string, provider);
 
-const liquidationJob = new Contract('0xAD038eFce5dE9DBC1acfe2e321Dd8F2D6f16e26b', LiquidationJobAbi, txSigner);
-const safeManager = new Contract('0xc0C6e2e5a31896e888eBEF5837Bb70CB3c37D86C', SafeManagerAbi, txSigner);
+const geb = new Geb('optimism-goerli', txSigner);
+let proxy: BasicActions;
+
 const maxChunkSize = 100;
+
+const typeMapping: any = {
+  '0x5745544800000000000000000000000000000000000000000000000000000000': 'WETH',
+  '0x4f50000000000000000000000000000000000000000000000000000000000000': 'OP',
+  '0x5742544300000000000000000000000000000000000000000000000000000000': 'WBTC',
+  '0x53544f4e45530000000000000000000000000000000000000000000000000000': 'STN',
+  '0x544f54454d000000000000000000000000000000000000000000000000000000': 'TTM',
+};
 
 const executeTx = async (id: number, cType: any, safeHandler: any) => {
   let tx;
@@ -31,8 +39,8 @@ const executeTx = async (id: number, cType: any, safeHandler: any) => {
   console.log(`Executing: Work Liquidation Id: ${id}`);
 
   try {
-    gasUnits = await liquidationJob.estimateGas.workLiquidation(cType, safeHandler);
-    gasUnits = gasUnits.mul(12).div(10); // add 20% buffer
+    gasUnits = await geb.contracts.liquidationJob.estimateGas.workLiquidation(cType, safeHandler);
+    gasUnits = gasUnits.mul(15).div(10); // add 50% buffer
     gasPrice = await provider.getGasPrice();
     txFee = gasUnits.mul(gasPrice);
   } catch (e) {
@@ -53,9 +61,17 @@ const executeTx = async (id: number, cType: any, safeHandler: any) => {
 
   // broadcast tx
   try {
-    tx = await liquidationJob.workLiquidation(cType, safeHandler, { gasLimit: gasUnits });
-    await tx.wait();
+    const cTypeName = typeMapping[cType];
+    tx = await proxy.liquidateSAFE(cTypeName, safeHandler); // it wants cType to be an actial name of token (@hai-on-op/sdk/src/proxy-action.ts:449:44)
+    if (!tx) throw new Error('No transaction request!');
+
+    tx.gasLimit = gasUnits;
+    const txData = await txSigner.sendTransaction(tx);
+    const txReceipt = await txData.wait();
+
     console.log(`Successfully broadcasted: Work Liquidation Id: ${id}`);
+
+    return txReceipt;
   } catch (err) {
     console.log(`Failed to broadcast: Work Liquidation Id: ${id}`);
     console.log(err);
@@ -67,7 +83,7 @@ const executeTx = async (id: number, cType: any, safeHandler: any) => {
 /*============================================================== */
 
 export async function run(): Promise<void> {
-  const openSafeEvents = (await safeManager.queryFilter(safeManager.filters.OpenSAFE())) as any;
+  const openSafeEvents = (await geb.contracts.safeManager.queryFilter(geb.contracts.safeManager.filters.OpenSAFE())) as any;
   const safeIds = openSafeEvents.map((event: any) => event.args[2]);
 
   // emulate batch with chunks
@@ -76,7 +92,7 @@ export async function run(): Promise<void> {
     const safeIdsChunk = safeIds.slice(i, i + maxChunkSize);
     const inputData = utils.defaultAbiCoder.encode(
       ['address', 'address', 'uint256[]'],
-      [liquidationJob.address, safeManager.address, safeIdsChunk]
+      [geb.contracts.liquidationJob.address, geb.contracts.safeManager.address, safeIdsChunk]
     );
     const contractCreationCode = BatchWorkable.bytecode.concat(inputData.slice(2));
     const returnedData = await provider.call({ data: contractCreationCode });
@@ -93,6 +109,8 @@ export async function run(): Promise<void> {
 }
 
 (async function main() {
+  proxy = await getProxy(txSigner, geb);
+
   console.log('Running...');
   await run();
   setTimeout(main, 2 * 60 * 1000); // every 2 minutes

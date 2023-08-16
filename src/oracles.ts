@@ -1,9 +1,9 @@
-import { Bytes, Contract, utils } from 'ethers';
+import { utils } from 'ethers';
 import { providers, Wallet } from 'ethers';
 import dotenv from 'dotenv';
-import OracleJobAbi from './abis/OracleJob.json';
 import { env } from 'process';
-import { checkBalance } from './utils/misc';
+import { checkBalance, getProxy } from './utils/misc';
+import { Geb, BasicActions } from '@hai-on-op/sdk';
 
 dotenv.config();
 
@@ -13,23 +13,20 @@ dotenv.config();
 
 // environment variables usage
 const provider = new providers.JsonRpcProvider(env.RPC_HTTPS_URI);
-const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as Bytes, provider);
+const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as string, provider);
 
-const oracleJob = new Contract('0x3e05f863afa6ACcAE0ED1e535559c881CB3f6b85', OracleJobAbi, txSigner);
+const geb = new Geb('optimism-goerli', txSigner);
+let proxy: BasicActions;
 
-const collateralTypes: string[] = [
-  utils.formatBytes32String('WETH'), // WETH
-  utils.formatBytes32String('OP'), // OP
-  utils.formatBytes32String('WBTC'), // WBTC
-  utils.formatBytes32String('STONES'), // STONES
-  utils.formatBytes32String('TOTEM'), // TOTEM
-];
+const collateralTypes: string[] = ['WETH', 'OP', 'WBTC', 'STN', 'TTM'];
 
 const emulateTxBatch = async (collateralTypes: string[]) => {
   return await Promise.all(
     collateralTypes.map(async (cType) => {
+      const bytes32CType = geb.tokenList[cType].bytes32String;
+      console.log(cType, bytes32CType);
       try {
-        await oracleJob.callStatic.workUpdateCollateralPrice(cType);
+        await geb.contracts.oracleJob.callStatic.workUpdateCollateralPrice(bytes32CType);
         console.log(`Successfully emulated: ${cType}`);
       } catch (err) {
         console.log(`Failed to emulate: ${cType}`);
@@ -51,8 +48,10 @@ const executeTx = async (cType: any) => {
   console.log(`Executing Work: ${cType}`);
 
   try {
-    gasUnits = await oracleJob.estimateGas.workUpdateCollateralPrice(cType);
-    gasUnits = gasUnits.mul(12).div(10); // add 20% buffer
+    const bytes32CType = geb.tokenList[cType].bytes32String;
+    // NOTE: this gas estimation underestimates the gas required for the tx (missing proxy txs, e.g transfer ERC20 to user)
+    gasUnits = await geb.contracts.oracleJob.estimateGas.workUpdateCollateralPrice(bytes32CType);
+    gasUnits = gasUnits.mul(15).div(10); // add 50% buffer
     gasPrice = await provider.getGasPrice();
     txFee = gasUnits.mul(gasPrice);
   } catch (err) {
@@ -72,11 +71,16 @@ const executeTx = async (cType: any) => {
 
   // broadcast tx
   try {
-    tx = await oracleJob.workUpdateCollateralPrice(cType, { gasLimit: gasUnits });
-    // wait for tx to be mined
-    await tx.wait();
+    tx = await proxy.updateOraclePrice(cType);
+    if (!tx) throw new Error('No transaction request!');
+
+    tx.gasLimit = gasUnits;
+    const txData = await txSigner.sendTransaction(tx);
+    const txReceipt = await txData.wait();
 
     console.log(`Successfully broadcasted: ${cType}`);
+
+    return txReceipt;
   } catch (err) {
     console.log(`Failed to broadcast: ${cType}`);
     console.log(err);
@@ -101,6 +105,8 @@ export async function run(): Promise<void> {
 }
 
 (async function main() {
+  proxy = await getProxy(txSigner, geb);
+
   console.log('Running...');
   await run();
   setTimeout(main, 15 * 1000); // every 15 seconds
