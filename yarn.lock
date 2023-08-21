@@ -679,10 +679,10 @@
     "@ethersproject/properties" "^5.7.0"
     "@ethersproject/strings" "^5.7.0"
 
-"@hai-on-op/sdk@1.1.0-rc.6":
-  version "1.1.0-rc.6"
-  resolved "https://registry.yarnpkg.com/@hai-on-op/sdk/-/sdk-1.1.0-rc.6.tgz#b802c634631031323c9a0d7ff3a7248b1bcdba28"
-  integrity sha512-r6tQIgTKuM6/GyMc/NTZ/7rb4H0gpbn73QkgiyzZ+fy+Zwuvj7jtX8bK3zlzlSV31jC1mfiU1qQIrqdMd33iAw==
+"@hai-on-op/sdk@1.2.0-rc.1":
+  version "1.2.0-rc.1"
+  resolved "https://registry.yarnpkg.com/@hai-on-op/sdk/-/sdk-1.2.0-rc.1.tgz#2c5e42fcaf78107bdb8287b99080a499ab623489"
+  integrity sha512-NTpqRqcdgL2sL8lhcJtztbsBRHJKKud24hxRxs9ovsVlJrYipdqX9lc7Oh7pjvBBAhOr8Rtzk+84gvvLKW1pTw==
   dependencies:
     ethers "5.4.7"
 
