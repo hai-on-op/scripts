@@ -1,78 +1,65 @@
-import { utils } from 'ethers';
-import { providers, Wallet } from 'ethers';
 import dotenv from 'dotenv';
-import { env } from 'process';
-import { checkBalance } from './utils/misc';
-import { Geb, BasicActions } from '@hai-on-op/sdk';
-import { getProxy } from './utils/misc';
+import { getTxFeeAndCheckBalance, processTx, getVariables } from './utils/misc';
 
 dotenv.config();
 
 /* ==============================================================/*
-                          SETUP
+                        HELPING SCRIPTS
 /*============================================================== */
 
-// environment variables usage
-const provider = new providers.JsonRpcProvider(env.RPC_HTTPS_URI);
-const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as string, provider);
+const emulateTx = async (geb: any) => {
+  try {
+    await geb.contracts.accountingJob.callStatic.workAuctionDebt();
+    console.log('Successfully emulated');
+  } catch (err) {
+    throw 'Failed to emulate tx';
+  }
+};
 
-const geb = new Geb('optimism-goerli', txSigner);
-let proxy: BasicActions;
+const broadcastTx = async (proxy: any, txSigner: any, gasUnits: any) => {
+  try {
+    const tx = await proxy.debtAuctionStart();
+    await processTx(tx, txSigner, gasUnits);
+    console.log('Successfully broadcasted');
+  } catch (err) {
+    console.log('Failed to broadcast tx');
+    throw err;
+  }
+};
 
 /* ==============================================================/*
-                       MAIN SCRIPT
+                        RUN SCRIPT
 /*============================================================== */
 
-export async function run(): Promise<any> {
-  let tx;
-  let gasUnits;
-  let gasPrice;
-  let txFee;
-  // emulate tx
+export async function run(provider: any, txSigner: any, geb: any, proxy: any): Promise<any> {
+  console.log('Running...');
+
   try {
-    console.log(`Emulating: Auction Debt`);
-    await geb.contracts.accountingJob.callStatic.workAuctionDebt();
+    // emulate tx
+    await emulateTx(geb);
 
-    gasUnits = await geb.contracts.accountingJob.estimateGas.workAuctionDebt();
-    gasUnits = gasUnits.mul(15).div(10); // add 50% buffer
-    gasPrice = await provider.getGasPrice();
-    txFee = gasUnits.mul(gasPrice);
-    console.log(`Successfully emulated: Auction Debt`);
+    // estimage gas
+    let gasUnits = await geb.contracts.accountingJob.estimateGas.workAuctionDebt();
+    gasUnits = gasUnits.mul(150).div(100); // add 50% for safety
+
+    // get tx fee and check balance
+    await getTxFeeAndCheckBalance(gasUnits, provider, txSigner);
+
+    // broadcast tx
+    await broadcastTx(proxy, txSigner, gasUnits);
   } catch (err) {
-    console.log(`Unsuccessfull emulation: Auction Debt`);
-    return;
-  }
-
-  // check if we have enough funds for gas
-  const signerBalance = await provider.getBalance(txSigner.address);
-  try {
-    checkBalance(signerBalance, txFee);
-  } catch (err) {
-    console.log(`Insufficient balance for Auction Debt`);
-    console.log(`Balance is ${utils.formatUnits(signerBalance, 'ether')}, but tx fee is ${utils.formatUnits(txFee, 'ether')}`);
-    return;
-  }
-
-  // broadcast tx
-  try {
-    tx = await proxy.debtAuctionStart();
-    if (!tx) throw new Error('No transaction request!');
-
-    tx.gasLimit = gasUnits;
-    const txData = await txSigner.sendTransaction(tx);
-    const txReceipt = await txData.wait();
-
-    console.log(`Successfully broadcasted: Auction Debt`);
-    return txReceipt;
-  } catch (err) {
-    console.log(`Failed to broadcast: Auction Debt`);
     console.log(err);
   }
+
+  // run every 15 minutes
+  setTimeout(run, 15 * 60 * 1000, provider, txSigner, geb, proxy);
 }
 
+/* ==============================================================/*
+                        MAIN SCRIPT
+/*============================================================== */
+
 (async function main() {
-  console.log('Running...');
-  proxy = await getProxy(txSigner, geb);
-  await run();
-  setTimeout(main, 15 * 60 * 1000); // every 15 minutes
+  const { provider, txSigner, geb, proxy } = await getVariables();
+  await run(provider, txSigner, geb, proxy);
 })();

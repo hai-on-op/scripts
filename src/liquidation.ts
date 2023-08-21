@@ -1,23 +1,9 @@
-import { utils } from 'ethers';
-import { providers, Wallet } from 'ethers';
 import dotenv from 'dotenv';
-import { env } from 'process';
-import { checkBalance, getProxy } from './utils/misc';
+import { getTxFeeAndCheckBalance, processTx, getVariables } from './utils/misc';
+import { utils } from 'ethers';
 import * as BatchWorkable from '../solidity/artifacts/contracts/BatchLiquidator.sol/BatchLiquidator.json';
-import { Geb, BasicActions } from '@hai-on-op/sdk';
 
 dotenv.config();
-
-/* ==============================================================/*
-                          SETUP
-/*============================================================== */
-
-// environment variables usage
-const provider = new providers.JsonRpcProvider(env.RPC_HTTPS_URI);
-const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as string, provider);
-
-const geb = new Geb('optimism-goerli', txSigner);
-let proxy: BasicActions;
 
 const maxChunkSize = 100;
 
@@ -29,89 +15,95 @@ const typeMapping: any = {
   '0x544f54454d000000000000000000000000000000000000000000000000000000': 'TTM',
 };
 
-const executeTx = async (id: number, cType: any, safeHandler: any) => {
-  let tx;
-  let gasUnits;
-  let gasPrice;
-  let txFee;
+/* ==============================================================/*
+                        HELPING SCRIPTS
+/*============================================================== */
 
-  // estimate gas
-  console.log(`Executing: Work Liquidation Id: ${id}`);
-
+const emulateTxBatchWithChunks = async (safeIds: any[], geb: any, provider: any) => {
+  let decodedAll: any[] = [];
   try {
-    gasUnits = await geb.contracts.liquidationJob.estimateGas.workLiquidation(cType, safeHandler);
-    gasUnits = gasUnits.mul(15).div(10); // add 50% buffer
-    gasPrice = await provider.getGasPrice();
-    txFee = gasUnits.mul(gasPrice);
-  } catch (e) {
-    console.log(`Failed to estimate gas for Work Liquidation Id: ${id}`);
-    console.log(e);
-    return;
+    // emulate batch with chunks
+    for (let i = 0; i < safeIds.length; i += maxChunkSize) {
+      const safeIdsChunk = safeIds.slice(i, i + maxChunkSize);
+      const inputData = utils.defaultAbiCoder.encode(
+        ['address', 'address', 'uint256[]'],
+        [geb.contracts.liquidationJob.address, geb.contracts.safeManager.address, safeIdsChunk]
+      );
+      const contractCreationCode = BatchWorkable.bytecode.concat(inputData.slice(2));
+      const returnedData = await provider.call({ data: contractCreationCode });
+      const [decoded] = utils.defaultAbiCoder.decode(['tuple(bool,bytes32,address)[]'], returnedData);
+      decodedAll = decodedAll.concat(decoded);
+    }
+  } catch (err) {
+    console.log('Failed to emulate batch');
+    throw err;
   }
+  return decodedAll;
+};
 
-  // check if we have enough funds for gas
-  const signerBalance = await provider.getBalance(txSigner.address);
-  try {
-    checkBalance(signerBalance, txFee);
-  } catch (e) {
-    console.log(`Insufficient balance for Work Liquidation Id: ${id}`);
-    console.log(`Balance is ${utils.formatUnits(signerBalance, 'ether')}, but tx fee is ${utils.formatUnits(txFee, 'ether')}`);
-    return;
-  }
-
-  // broadcast tx
+const broadcastTx = async (id: any, cType: any, safeHandler: any, proxy: any, txSigner: any, gasUnits: any) => {
   try {
     const cTypeName = typeMapping[cType];
-    tx = await proxy.liquidateSAFE(cTypeName, safeHandler); // it wants cType to be an actial name of token (@hai-on-op/sdk/src/proxy-action.ts:449:44)
-    if (!tx) throw new Error('No transaction request!');
-
-    tx.gasLimit = gasUnits;
-    const txData = await txSigner.sendTransaction(tx);
-    const txReceipt = await txData.wait();
+    const tx = await proxy.liquidateSAFE(cTypeName, safeHandler); // it wants cType to be an actial name of token (@hai-on-op/sdk/src/proxy-action.ts:449:44)
+    await processTx(tx, txSigner, gasUnits);
 
     console.log(`Successfully broadcasted: Work Liquidation Id: ${id}`);
-
-    return txReceipt;
   } catch (err) {
     console.log(`Failed to broadcast: Work Liquidation Id: ${id}`);
-    console.log(err);
+    throw err;
   }
 };
+
+/* ==============================================================/*
+                       RUN SCRIPT
+/*============================================================== */
+
+export async function run(provider: any, txSigner: any, geb: any, proxy: any): Promise<void> {
+  console.log('Running...');
+
+  try {
+    // get all open safes
+    const openSafeEvents = (await geb.contracts.safeManager.queryFilter(geb.contracts.safeManager.filters.OpenSAFE())) as any;
+    const safeIds = openSafeEvents.map((event: any) => event.args[2]);
+
+    // emulate batch
+    const decodedAll = await emulateTxBatchWithChunks(safeIds, geb, provider);
+
+    console.log(
+      'Successfully emulated batch:',
+      decodedAll.reduce((partialSum, a) => partialSum + a[0], 0)
+    );
+
+    // execute batch
+    for (let i = 0; i < decodedAll.length; i++) {
+      const [emulated, cType, safeHandler] = decodedAll[i];
+      if (!emulated) continue;
+
+      console.log(`Executing: Work Liquidation Id: ${safeIds[i]}`);
+
+      // estimage gas
+      let gasUnits = await geb.contracts.liquidationJob.estimateGas.workLiquidation(cType, safeHandler);
+      gasUnits = gasUnits.mul(150).div(100); // add 50% for safety
+
+      // get tx fee and check balance
+      await getTxFeeAndCheckBalance(gasUnits, provider, txSigner);
+
+      // broadcast tx
+      await broadcastTx(safeIds[i], cType, safeHandler, proxy, txSigner, gasUnits);
+    }
+  } catch (err) {
+    console.log(err);
+  }
+
+  // run every 2 minutes
+  setTimeout(run, 2 * 60 * 1000, provider, txSigner, geb, proxy);
+}
 
 /* ==============================================================/*
                        MAIN SCRIPT
 /*============================================================== */
 
-export async function run(): Promise<void> {
-  const openSafeEvents = (await geb.contracts.safeManager.queryFilter(geb.contracts.safeManager.filters.OpenSAFE())) as any;
-  const safeIds = openSafeEvents.map((event: any) => event.args[2]);
-
-  // emulate batch with chunks
-  let decodedAll: any[] = [];
-  for (let i = 0; i < safeIds.length; i += maxChunkSize) {
-    const safeIdsChunk = safeIds.slice(i, i + maxChunkSize);
-    const inputData = utils.defaultAbiCoder.encode(
-      ['address', 'address', 'uint256[]'],
-      [geb.contracts.liquidationJob.address, geb.contracts.safeManager.address, safeIdsChunk]
-    );
-    const contractCreationCode = BatchWorkable.bytecode.concat(inputData.slice(2));
-    const returnedData = await provider.call({ data: contractCreationCode });
-    const [decoded] = utils.defaultAbiCoder.decode(['tuple(bool,bytes32,address)[]'], returnedData);
-    decodedAll = decodedAll.concat(decoded);
-  }
-  // execute batch
-  for (let i = 0; i < decodedAll.length; i++) {
-    const [emulated, cType, safeHandler] = decodedAll[i];
-    if (!emulated) continue;
-
-    await executeTx(safeIds[i], cType, safeHandler);
-  }
-}
-
 (async function main() {
-  proxy = await getProxy(txSigner, geb);
-
-  console.log('Running...');
-  await run();
-  setTimeout(main, 2 * 60 * 1000); // every 2 minutes
+  const { provider, txSigner, geb, proxy } = await getVariables();
+  await run(provider, txSigner, geb, proxy);
 })();

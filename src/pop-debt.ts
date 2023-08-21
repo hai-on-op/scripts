@@ -1,38 +1,21 @@
-import { utils } from 'ethers';
-import { providers, Wallet } from 'ethers';
 import dotenv from 'dotenv';
-import { env } from 'process';
-import { checkBalance } from './utils/misc';
-import { Geb, BasicActions } from '@hai-on-op/sdk';
-import { getProxy } from './utils/misc';
+import { getTxFeeAndCheckBalance, processTx, getVariables } from './utils/misc';
 
 dotenv.config();
 
 /* ==============================================================/*
-                          SETUP
+                        HELPING SCRIPTS
 /*============================================================== */
 
-// environment variables usage
-const provider = new providers.JsonRpcProvider(env.RPC_HTTPS_URI);
-const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as string, provider);
-
-const geb = new Geb('optimism-goerli', txSigner);
-let proxy: BasicActions;
-
-const timeout = 5 * 1000 * 60; // 15 minutes
-
-let startBlock = 0;
-
-const emulateTxBatch = async (events: any[]) => {
+const emulateTxBatch = async (events: any[], geb: any) => {
   return await Promise.all(
     events.map(async (event) => {
       const timestamp = event.args[0];
       try {
         await geb.contracts.accountingJob.callStatic.workPopDebtFromQueue(timestamp);
-        console.log(`Successfully emulated: Pop Debt ${timestamp}`);
+        console.log(`Successfully emulated:`, timestamp.toString());
       } catch (e) {
-        console.log(`Unsuccessfull emulation: Pop Debt ${timestamp}`);
-        console.log(e);
+        console.log(`Unsuccessfull emulation:`, timestamp.toString());
         return false;
       }
       return true;
@@ -40,53 +23,20 @@ const emulateTxBatch = async (events: any[]) => {
   );
 };
 
-const executeTx = async (timestamp: any) => {
-  let tx;
-  let gasUnits;
-  let gasPrice;
-  let txFee;
-
-  // estimage gas
-  console.log(`Executing: Pop Debt: ${timestamp}`);
+const broadcastTx = async (timestamp: any, proxy: any, txSigner: any, gasUnits: any) => {
   try {
-    gasUnits = await geb.contracts.accountingJob.estimateGas.workPopDebtFromQueue(timestamp);
-    gasUnits = gasUnits.mul(20).div(10); // add 100% buffer
-    gasPrice = await provider.getGasPrice();
-    txFee = gasUnits.mul(gasPrice);
-  } catch (err) {
-    console.log(`Failed to estimate gas for: ${timestamp}`);
-    return;
-  }
-
-  // check if we have enough funds for gas
-  const signerBalance = await provider.getBalance(txSigner.address);
-  try {
-    checkBalance(signerBalance, txFee);
-  } catch (e) {
-    console.log(`Insufficient balance for Pop Debt ${timestamp}`);
-    console.log(`Balance is ${utils.formatUnits(signerBalance, 'ether')}, but tx fee is ${utils.formatUnits(txFee, 'ether')}`);
-    return;
-  }
-
-  // broadcast tx
-  try {
-    tx = await proxy.popDebtFromQueue(timestamp);
-    if (!tx) throw new Error('No transaction request!');
-
-    tx.gasLimit = gasUnits;
-    const txData = await txSigner.sendTransaction(tx);
-    const txReceipt = await txData.wait();
+    const tx = await proxy.popDebtFromQueue(timestamp);
+    await processTx(tx, txSigner, gasUnits);
 
     console.log(`Successfully broadcasted: Pop Debt ${timestamp}`);
-    return txReceipt;
   } catch (err) {
     console.log(`Failed to broadcast: Pop Debt ${timestamp}`);
-    console.log(err);
+    throw err;
   }
 };
 
 // find unpoped push events
-const getUnsolvedEvents = async () => {
+const getUnsolvedEvents = async (geb: any) => {
   const pushEvents = (await geb.contracts.accountingEngine.queryFilter(geb.contracts.accountingEngine.filters.PushDebtToQueue())) as any;
   const popEvents = (await geb.contracts.accountingEngine.queryFilter(geb.contracts.accountingEngine.filters.PopDebtFromQueue())) as any;
 
@@ -96,42 +46,49 @@ const getUnsolvedEvents = async () => {
 };
 
 /* ==============================================================/*
-                       MAIN SCRIPT
+                       RUN SCRIPT
 /*============================================================== */
 
-export async function run(startBlock: number): Promise<number> {
+export async function run(provider: any, txSigner: any, geb: any, proxy: any) {
+  console.log('Running...');
+
   // process historical events
-  console.log(`Fetching historical events from block: ${startBlock}`);
-  const events = await getUnsolvedEvents();
+  const events = await getUnsolvedEvents(geb);
   console.log(`Found unsolved events: ${events.length}`);
 
-  if (events.length === 0) return startBlock;
-
-  const lastEventBlock = events[events.length - 1].blockNumber;
-
   // emulate batch
-  const succeed = await emulateTxBatch(events);
+  const succeed = await emulateTxBatch(events, geb);
 
-  // broadcasting
+  // process succeed events
   for (let i = 0; i < events.length; i++) {
     if (!succeed[i]) continue;
 
-    const event = events[i];
-    await executeTx(event.args[0]);
+    const timestamp = events[i].args[0];
+
+    // estimate gas
+    let gasUnits = await geb.contracts.accountingJob.estimateGas.workPopDebtFromQueue(timestamp);
+    gasUnits = gasUnits.mul(20).div(10); // add 100% buffer
+
+    // get tx fee and check balance
+    await getTxFeeAndCheckBalance(gasUnits, provider, txSigner);
+
+    // broadcast tx
+    await broadcastTx(timestamp, proxy, txSigner, gasUnits);
   }
 
   // check events afrer run
-  const eventsAfter = await getUnsolvedEvents();
+  const eventsAfter = await getUnsolvedEvents(geb);
   console.log(`Still unsolved events: ${eventsAfter.length}`);
 
-  if (eventsAfter.length === 0) return startBlock;
-
-  return lastEventBlock;
+  // run every 15 minutes
+  setTimeout(run, 15 * 1000 * 60, provider, txSigner, geb, proxy);
 }
 
+/* ==============================================================/*
+                       MAIN SCRIPT
+/*============================================================== */
+
 (async function main() {
-  console.log('Running...');
-  proxy = await getProxy(txSigner, geb);
-  startBlock = await run(startBlock); // start scan from next block
-  setTimeout(main, timeout); // every timeout ms
+  const { provider, txSigner, geb, proxy } = await getVariables();
+  await run(provider, txSigner, geb, proxy);
 })();
