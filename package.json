@@ -25,6 +25,7 @@
     "build": "yarn run compile-contracts && tsc",
     "prod:data-time-fetch": "node dist/oracles.js",
     "prod:data-twap-fetch": "node dist/pid-controller.js",
+    "prod:liquidation": "node dist/src/liquidation.js",
     "lint:check": "yarn lint",
     "lint:fix": "yarn lint --fix",
     "lint": "eslint ./src"
