@@ -1,3 +1,3 @@
-# Sidechain Oracle Keeper Script
+# HAI scripts
 
 This repository enables keepers of HAI to execute maintenance tasks.
