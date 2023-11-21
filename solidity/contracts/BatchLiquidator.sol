@@ -26,7 +26,7 @@ contract BatchLiquidator {
             bool _succeed;
 
             // get params from the safe manager
-            (, address _safeHandler, bytes32 _collateralType) = _safeManager
+            (, , address _safeHandler, bytes32 _collateralType) = _safeManager
                 .safeData(_safeIds[_i]);
 
             // call the liquidation job

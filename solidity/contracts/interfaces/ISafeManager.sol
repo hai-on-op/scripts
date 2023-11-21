@@ -8,5 +8,5 @@ interface ISafeManager {
     )
         external
         view
-        returns (address _owner, address _safeHandler, bytes32 _collateralType);
+        returns (address _owner, address _pendingOwner, address _safeHandler, bytes32 _collateralType);
 }
