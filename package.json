@@ -25,6 +25,7 @@
     "build": "yarn run compile-contracts && tsc",
     "prod:data-time-fetch": "node dist/oracles.js",
     "prod:data-twap-fetch": "node dist/pid-controller.js",
+    "prod:liquidation": "node dist/src/liquidation.js",
     "lint:check": "yarn lint",
     "lint:fix": "yarn lint --fix",
     "lint": "eslint ./src"
@@ -33,11 +34,11 @@
     "*.ts": "yarn lint"
   },
   "dependencies": {
+    "@hai-on-op/sdk": "1.2.1",
     "@types/node": "^20.4.2",
     "dotenv": "16.0.3",
     "ethers": "5.4.7",
-    "lodash.isequal": "4.5.0",
-    "@hai-on-op/sdk": "1.2.0-rc.1"
+    "lodash.isequal": "4.5.0"
   },
   "devDependencies": {
     "@types/lodash.isequal": "4.5.6",

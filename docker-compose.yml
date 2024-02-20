@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  liquidation:
+    image: piesrtasty/hai-keeper:amd64-0.1.1
+    environment:
+      RPC_HTTPS_URI: ${RPC_HTTPS_URI}
+      TX_SIGNER_PRIVATE_KEY: ${TX_SIGNER_PRIVATE_KEY}
+      PM2_PUBLIC_KEY: ${PM2_PUBLIC_KEY}
+      PM2_SECRET_KEY: ${PM2_SECRET_KEY}
+    logging:
+      options:
+        max-size: 100m
