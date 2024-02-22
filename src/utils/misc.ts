@@ -30,7 +30,7 @@ export const processTx = async (tx: any, txSigner: any, gasUnits: any) => {
 export const getVariables = async () => {
   const provider = new providers.JsonRpcProvider(env.RPC_HTTPS_URI);
   const txSigner = new Wallet(env.TX_SIGNER_PRIVATE_KEY as any as string, provider);
-  const geb = new Geb('optimism-goerli', txSigner);
+  const geb = new Geb('optimism-sepolia', txSigner);
   const proxy: BasicActions = await getProxy(txSigner, geb);
   return { provider, txSigner, geb, proxy };
 };
