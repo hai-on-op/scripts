@@ -3,7 +3,10 @@ import { getTxFeeAndCheckBalance, processTx, getVariables } from './utils/misc';
 
 dotenv.config();
 
-const collateralTypes: string[] = ['WETH', 'OP', 'WBTC', 'STN', 'TTM'];
+const sepoliacollateralTypes: string[] = ['WETH', 'OP', 'WBTC', 'STN', 'TTM'];
+const mainnetCollateralTypes: string[] = ['WETH', 'OP', 'WSTETH'];
+
+const collateralTypes = process.env.NETWORK === 'optimism-sepolia' ? sepoliacollateralTypes : mainnetCollateralTypes;
 
 /* ==============================================================/*
                         HELPING SCRIPTS
