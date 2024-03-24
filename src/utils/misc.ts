@@ -11,6 +11,7 @@ export const checkBalance = (signerBalance: any, txFee: any) => {
 
 export const getTxFeeAndCheckBalance = async (gasUnits: any, provider: any, txSigner: any) => {
   const gasPrice = await provider.getGasPrice();
+
   const txFee = gasUnits.mul(gasPrice);
 
   const signerBalance = await provider.getBalance(txSigner.address);
@@ -23,6 +24,7 @@ export const processTx = async (tx: any, txSigner: any, gasUnits: any) => {
   if (!tx) throw new Error('No transaction request!');
 
   tx.gasLimit = gasUnits;
+  tx.maxPriorityFeePerGas = 1;
   const txData = await txSigner.sendTransaction(tx);
   await txData.wait();
 };
