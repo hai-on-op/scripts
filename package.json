@@ -38,7 +38,7 @@
     "*.ts": "yarn lint"
   },
   "dependencies": {
-    "@hai-on-op/sdk": "1.2.6",
+    "@hai-on-op/sdk": "1.2.13",
     "@types/node": "^20.4.2",
     "dotenv": "16.0.3",
     "ethers": "5.4.7",
